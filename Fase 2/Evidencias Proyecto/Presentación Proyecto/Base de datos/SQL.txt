@@ -1,0 +1,125 @@
+-- WARNING: Esto es para contexto, no para correrlo.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.spatial_ref_sys (
+  srid integer NOT NULL CHECK (srid > 0 AND srid <= 998999),
+  auth_name character varying,
+  auth_srid integer,
+  srtext character varying,
+  proj4text character varying,
+  CONSTRAINT spatial_ref_sys_pkey PRIMARY KEY (srid)
+);
+CREATE TABLE public.users (
+  id integer NOT NULL DEFAULT nextval('users_id_seq'::regclass),
+  email character varying NOT NULL UNIQUE,
+  password_hash character varying NOT NULL,
+  name character varying NOT NULL,
+  phone character varying,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  push_token character varying,
+  CONSTRAINT users_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.connections (
+  id integer NOT NULL DEFAULT nextval('connections_id_seq'::regclass),
+  user_id integer,
+  connected_user_id integer,
+  status character varying,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT connections_pkey PRIMARY KEY (id),
+  CONSTRAINT connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT connections_connected_user_id_fkey FOREIGN KEY (connected_user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.active_routes (
+  id integer NOT NULL DEFAULT nextval('active_routes_id_seq'::regclass),
+  user_id integer,
+  name character varying,
+  start_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  end_time timestamp without time zone,
+  is_active boolean DEFAULT true,
+  status character varying,
+  group_id integer,
+  destination_name character varying,
+  destination USER-DEFINED,
+  planned_path USER-DEFINED,
+  planned_distance_m double precision,
+  planned_duration_s integer,
+  deviation_threshold_m integer DEFAULT 40,
+  deviation_points integer DEFAULT 3,
+  stationary_alert_s integer DEFAULT 180,
+  signal_lost_s integer DEFAULT 300,
+  off_route_since timestamp without time zone,
+  last_alert_type character varying,
+  last_alert_at timestamp without time zone,
+  destination_radius_m integer DEFAULT 50,
+  CONSTRAINT active_routes_pkey PRIMARY KEY (id),
+  CONSTRAINT active_routes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT active_routes_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id)
+);
+CREATE TABLE public.location_points (
+  id integer NOT NULL DEFAULT nextval('location_points_id_seq'::regclass),
+  route_id integer,
+  user_id integer,
+  location USER-DEFINED,
+  timestamp timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  altitude double precision,
+  accuracy double precision,
+  speed double precision,
+  deviation_m double precision,
+  CONSTRAINT location_points_pkey PRIMARY KEY (id),
+  CONSTRAINT location_points_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.active_routes(id),
+  CONSTRAINT location_points_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.stops (
+  id integer NOT NULL DEFAULT nextval('stops_id_seq'::regclass),
+  route_id integer,
+  start_time timestamp without time zone,
+  end_time timestamp without time zone,
+  duration_minutes integer,
+  location USER-DEFINED,
+  CONSTRAINT stops_pkey PRIMARY KEY (id),
+  CONSTRAINT stops_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.active_routes(id)
+);
+CREATE TABLE public.notifications (
+  id integer NOT NULL DEFAULT nextval('notifications_id_seq'::regclass),
+  user_id integer,
+  type character varying,
+  message text,
+  data jsonb,
+  is_read boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  route_id integer,
+  sent_push boolean DEFAULT false,
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT notifications_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.active_routes(id)
+);
+CREATE TABLE public.groups (
+  id integer NOT NULL DEFAULT nextval('groups_id_seq'::regclass),
+  name character varying NOT NULL,
+  owner_id integer,
+  invite_code character varying NOT NULL UNIQUE,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT groups_pkey PRIMARY KEY (id),
+  CONSTRAINT groups_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.group_members (
+  id integer NOT NULL DEFAULT nextval('group_members_id_seq'::regclass),
+  group_id integer,
+  user_id integer,
+  role character varying DEFAULT 'member'::character varying,
+  status character varying DEFAULT 'pending'::character varying,
+  joined_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT group_members_pkey PRIMARY KEY (id),
+  CONSTRAINT group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
+  CONSTRAINT group_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.places (
+  id integer NOT NULL DEFAULT nextval('places_id_seq'::regclass),
+  user_id integer NOT NULL,
+  name character varying NOT NULL,
+  location USER-DEFINED NOT NULL,
+  radius_m integer DEFAULT 50,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT places_pkey PRIMARY KEY (id),
+  CONSTRAINT places_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
